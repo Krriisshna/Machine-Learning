@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch
+import numpy as np
 
 
 def draw_vthresh(ax, x, left_color="#0096FF", right_color="#C00000"):
@@ -59,3 +60,20 @@ def draw_vthresh(ax, x, left_color="#0096FF", right_color="#C00000"):
     ax.add_patch(left_arrow)
 
     return ax
+
+def plot_data(X,y,ax, pos_label="y=1",neg_label="y=0", s=80,loc="best"):
+    pos = y == 1
+    neg = y == 0
+    pos = pos.reshape(-1,)
+    neg = neg.reshape(-1,)
+
+    ax.scatter(X[pos,0],X[pos,1],marker='x',color='red',label=pos_label,s=s)
+    ax.scatter(X[neg,0],X[neg,1],marker="o",label=neg_label,s=100,facecolors="none",lw=3,edgecolor="blue")
+    ax.legend(loc=loc)
+
+def sigmoid(z):
+    z = np.clip(z, -500,500)
+    # np.clip() limits the array to a chosen min. and max.
+    # values below min. becomes min. and values above max. beacomes max.
+
+    g = (1.0)/(1.0 + np.exp(-z))
