@@ -77,3 +77,6 @@ def sigmoid(z):
     # values below min. becomes min. and values above max. beacomes max.
 
     g = (1.0)/(1.0 + np.exp(-z))
+    return g
+z = np.array([1,2,3,4])
+print(sigmoid(z))
