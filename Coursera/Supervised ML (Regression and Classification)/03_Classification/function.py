@@ -2,6 +2,10 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch
 import numpy as np
 
+dlc = dict(dlblue = '#0096ff', dlorange = '#FF9300', dldarkred='#C00000', dlmagenta='#FF40FF', dlpurple='#7030A0')
+dlblue = '#0096ff'; dlorange = '#FF9300'; dldarkred='#C00000'; dlmagenta='#FF40FF'; dlpurple='#7030A0'
+dlcolors = [dlblue, dlorange, dldarkred, dlmagenta, dlpurple]
+
 
 def draw_vthresh(ax, x, left_color="#0096FF", right_color="#C00000"):
     if ax is None or not hasattr(ax, "get_xlim"):
@@ -78,5 +82,90 @@ def sigmoid(z):
 
     g = (1.0)/(1.0 + np.exp(-z))
     return g
-z = np.array([1,2,3,4])
-print(sigmoid(z))
+
+def plt_logistic_cost(X,y):
+    """ plots logistic cost """
+    wx, by = np.meshgrid(np.linspace(-6,12,50),
+                         np.linspace(0, -20, 40))
+    points = np.c_[wx.ravel(), by.ravel()]
+    cost = np.zeros(points.shape[0],dtype=np.longdouble)
+
+    for i in range(points.shape[0]):
+        w,b = points[i]
+        cost[i] = compute_cost_matrix(X.reshape(-1,1), y, w, b, logistic=True, safe=True)
+    cost = cost.reshape(wx.shape)
+
+    fig = plt.figure(figsize=(9,5))
+    fig.canvas.toolbar_visible = False
+    fig.canvas.header_visible = False
+    fig.canvas.footer_visible = False
+    ax = fig.add_subplot(1, 2, 1, projection='3d')
+    ax.plot_surface(wx, by, cost, alpha=0.6,cmap=cm.jet,)
+
+    ax.set_xlabel('w', fontsize=16)
+    ax.set_ylabel('b', fontsize=16)
+    ax.set_zlabel("Cost", rotation=90, fontsize=16)
+    ax.set_title('Logistic Cost vs (w, b)')
+    ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+
+    ax = fig.add_subplot(1, 2, 2, projection='3d')
+
+    ax.plot_surface(wx, by, np.log(cost), alpha=0.6,cmap=cm.jet,)
+
+    ax.set_xlabel('w', fontsize=16)
+    ax.set_ylabel('b', fontsize=16)
+    ax.set_zlabel('\nlog(Cost)', fontsize=16)
+    ax.set_title('log(Logistic Cost) vs (w, b)')
+    ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+
+    plt.show()
+    return cost
+
+def plt_two_logistic_loss_curves():
+    """ plots the logistic loss """
+    fig,ax = plt.subplots(1,2,figsize=(6,3),sharey=True)
+    fig.canvas.toolbar_visible = False
+    fig.canvas.header_visible = False
+    fig.canvas.footer_visible = False
+    x = np.linspace(0.01,1-0.01,20)
+    ax[0].plot(x,-np.log(x))
+    #ax[0].set_title("y = 1")
+    ax[0].text(0.5, 4.0, "y = 1", fontsize=12)
+    ax[0].set_ylabel("loss")
+    ax[0].set_xlabel(r"$f_{w,b}(x)$")
+    ax[1].plot(x,-np.log(1-x))
+    #ax[1].set_title("y = 0")
+    ax[1].text(0.5, 4.0, "y = 0", fontsize=12)
+    ax[1].set_xlabel(r"$f_{w,b}(x)$")
+    ax[0].annotate("prediction \nmatches \ntarget ", xy= [1,0], xycoords='data',
+                 xytext=[-10,30],textcoords='offset points', ha="right", va="center",
+                   arrowprops={'arrowstyle': '->', 'color': dlorange, 'lw': 3},)
+    ax[0].annotate("loss increases as prediction\n differs from target", xy= [0.1,-np.log(0.1)], xycoords='data',
+                 xytext=[10,30],textcoords='offset points', ha="left", va="center",
+                   arrowprops={'arrowstyle': '->', 'color': dlorange, 'lw': 3},)
+    ax[1].annotate("prediction \nmatches \ntarget ", xy= [0,0], xycoords='data',
+                 xytext=[10,30],textcoords='offset points', ha="left", va="center",
+                   arrowprops={'arrowstyle': '->', 'color': dlorange, 'lw': 3},)
+    ax[1].annotate("loss increases as prediction\n differs from target", xy= [0.9,-np.log(1-0.9)], xycoords='data',
+                 xytext=[-10,30],textcoords='offset points', ha="right", va="center",
+                   arrowprops={'arrowstyle': '->', 'color': dlorange, 'lw': 3},)
+    plt.suptitle("Loss Curves for Two Categorical Target Values", fontsize=12)
+    plt.tight_layout()
+    plt.show()
+
+    def plt_simple_example(x,y):
+        pos = y == 1
+        neg = y == 0
+
+        fig,ax = plt.subplots(1,1, figsize=(5,3))
+        ax.scatter(x[pos],y[pos],marker='x',s=80,label='malignant',color='red')
+        ax.scatter(x[neg],y[neg],marker='o',s=100,label='benign',facecolor='none',edgecolors=dlblue,lw=3)
+        ax.set_ylim(-0.075,1.1)
+        ax.set_ylabel('y')
+        ax.set_xlabel('tumor size')
+        ax.legend(loc='lower right')
+        ax.set_title("Example of Logistic Regression on Categorical Data")
