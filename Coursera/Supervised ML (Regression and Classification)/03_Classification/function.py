@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch
 import numpy as np
+from matplotlib import cm
 
 dlc = dict(dlblue = '#0096ff', dlorange = '#FF9300', dldarkred='#C00000', dlmagenta='#FF40FF', dlpurple='#7030A0')
 dlblue = '#0096ff'; dlorange = '#FF9300'; dldarkred='#C00000'; dlmagenta='#FF40FF'; dlpurple='#7030A0'
@@ -157,7 +158,7 @@ def plt_two_logistic_loss_curves():
     plt.tight_layout()
     plt.show()
 
-    def plt_simple_example(x,y):
+def plt_simple_example(x,y):
         pos = y == 1
         neg = y == 0
 
@@ -169,3 +170,115 @@ def plt_two_logistic_loss_curves():
         ax.set_xlabel('tumor size')
         ax.legend(loc='lower right')
         ax.set_title("Example of Logistic Regression on Categorical Data")
+
+def soup_bowl():
+    """ creates 3D quadratic error surface """
+    #Create figure and plot with a 3D projection
+    fig = plt.figure(figsize=(4,4))
+    fig.canvas.toolbar_visible = False
+    fig.canvas.header_visible = False
+    fig.canvas.footer_visible = False
+
+    #Plot configuration
+    ax = fig.add_subplot(111, projection='3d')
+    ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.zaxis.set_rotate_label(False)
+    ax.view_init(15, -120)
+
+    #Useful linearspaces to give values to the parameters w and b
+    w = np.linspace(-20, 20, 100)
+    b = np.linspace(-20, 20, 100)
+
+    #Get the z value for a bowl-shaped cost function
+    z=np.zeros((len(w), len(b)))
+    j=0
+    for x in w:
+        i=0
+        for y in b:
+            z[i,j] = x**2 + y**2
+            i+=1
+        j+=1
+
+    #Meshgrid used for plotting 3D functions
+    W, B = np.meshgrid(w, b)
+
+    #Create the 3D surface plot of the bowl-shaped cost function
+    ax.plot_surface(W, B, z, cmap = "Spectral_r", alpha=0.7, antialiased=False)
+    ax.plot_wireframe(W, B, z, color='k', alpha=0.1)
+    ax.set_xlabel("$w$")
+    ax.set_ylabel("$b$")
+    ax.set_zlabel("Cost", rotation=90)
+    ax.set_title("Squared Error Cost used in Linear Regression")
+
+    plt.show()
+
+def plt_logistic_squared_error(X,y):
+    """ plots logistic squared error for demonstration """
+    wx, by = np.meshgrid(np.linspace(-6,12,50),
+                         np.linspace(10, -20, 40))
+    points = np.c_[wx.ravel(), by.ravel()]
+    cost = np.zeros(points.shape[0])
+
+    for i in range(points.shape[0]):
+        w,b = points[i]
+        cost[i] = compute_cost_logistic_sq_err(X.reshape(-1,1), y, w, b)
+    cost = cost.reshape(wx.shape)
+
+    fig = plt.figure()
+    fig.canvas.toolbar_visible = False
+    fig.canvas.header_visible = False
+    fig.canvas.footer_visible = False
+    ax = fig.add_subplot(1, 1, 1, projection='3d')
+    ax.plot_surface(wx, by, cost, alpha=0.6,cmap=cm.jet,)
+
+    ax.set_xlabel('w', fontsize=16)
+    ax.set_ylabel('b', fontsize=16)
+    ax.set_zlabel("Cost", rotation=90, fontsize=16)
+    ax.set_title('"Logistic" Squared Error Cost vs (w, b)')
+    ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+
+def compute_cost_logistic_sq_err(X, y, w, b):
+    m = X.shape[0]
+    cost = 0.0
+    for i in range(m):
+        z_i = np.dot(X[i],w) + b
+        f_wb_i = sigmoid(z_i)                 #add sigmoid to normal sq error cost for linear regression
+        cost = cost + (f_wb_i - y[i])**2
+    cost = cost / (2 * m)
+    return np.squeeze(cost)
+
+def compute_cost_matrix(X, y, w, b, logistic=False, lambda_=0, safe=True):
+    m = X.shape[0]
+    y = y.reshape(-1,1)             # ensure 2D
+    w = w.reshape(-1,1)             # ensure 2D
+    if logistic:
+        if safe:  #safe from overflow
+            z = X @ w + b                                                           #(m,n)(n,1)=(m,1)
+            cost = -(y * z) + log_1pexp(z)
+            cost = np.sum(cost)/m                                                   # (scalar)
+        else:
+            f    = sigmoid(X @ w + b)                                               # (m,n)(n,1) = (m,1)
+            cost = (1/m)*(np.dot(-y.T, np.log(f)) - np.dot((1-y).T, np.log(1-f)))   # (1,m)(m,1) = (1,1)
+            cost = cost[0,0]                                                        # scalar
+    else:
+        f    = X @ w + b                                                        # (m,n)(n,1) = (m,1)
+        cost = (1/(2*m)) * np.sum((f - y)**2)                                   # scalar
+
+    reg_cost = (lambda_/(2*m)) * np.sum(w**2)                                   # scalar
+
+    total_cost = cost + reg_cost                                                # scalar
+
+    return total_cost
+
+def log_1pexp(x, maximum=20):
+    out  = np.zeros_like(x,dtype=float)
+    i    = x <= maximum
+    ni   = np.logical_not(i)
+
+    out[i]  = np.log(1 + np.exp(x[i]))
+    out[ni] = x[ni]
+    return out
