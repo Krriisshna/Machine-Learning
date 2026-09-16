@@ -2,6 +2,9 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch
 import numpy as np
 from matplotlib import cm
+from matplotlib.gridspec import GridSpec
+from matplotlib.widgets import Button
+import matplotlib.colors as colors
 
 dlc = dict(dlblue = '#0096ff', dlorange = '#FF9300', dldarkred='#C00000', dlmagenta='#FF40FF', dlpurple='#7030A0')
 dlblue = '#0096ff'; dlorange = '#FF9300'; dldarkred='#C00000'; dlmagenta='#FF40FF'; dlpurple='#7030A0'
@@ -282,3 +285,208 @@ def log_1pexp(x, maximum=20):
     out[i]  = np.log(1 + np.exp(x[i]))
     out[ni] = x[ni]
     return out
+
+def plt_tumor_data(x,y,ax):
+    pos = y == 1
+    neg = y == 0
+
+    ax.scatter(x[pos],y[pos], s=80,marker='x',label='malignant',c='red')
+    ax.scatter(x[neg],y[neg], s=100,marker='o',label='benign',facecolors='none',edgecolors=dlblue,lw=3)
+    ax.set_ylim(-0.175,1.1)
+    ax.set_ylabel('y')
+    ax.set_xlabel('Tumor Size')
+    ax.set_title("Logistic Regression on Categorical Data")
+
+class plt_quad_logistic:
+    ''' plots a quad plot showing logistic regression '''
+    # pylint: disable=too-many-instance-attributes
+    # pylint: disable=too-many-locals
+    # pylint: disable=missing-function-docstring
+    # pylint: disable=attribute-defined-outside-init
+    def __init__(self, x_train,y_train, w_range, b_range):
+        # setup figure
+        fig = plt.figure( figsize=(10,6))
+        fig.canvas.toolbar_visible = False
+        fig.canvas.header_visible = False
+        fig.canvas.footer_visible = False
+        fig.set_facecolor('#ffffff') #white
+        gs  = GridSpec(2, 2, figure=fig)
+        ax0 = fig.add_subplot(gs[0, 0])
+        ax1 = fig.add_subplot(gs[0, 1])
+        ax2 = fig.add_subplot(gs[1, 0],  projection='3d')
+        ax3 = fig.add_subplot(gs[1,1])
+        pos = ax3.get_position().get_points()  ##[[lb_x,lb_y], [rt_x, rt_y]]
+        h = 0.05 
+        width = 0.2
+        axcalc   = plt.axes([pos[1,0]-width, pos[1,1]-h, width, h])  #lx,by,w,h
+        ax = np.array([ax0, ax1, ax2, ax3, axcalc])
+        self.fig = fig
+        self.ax = ax
+        self.x_train = x_train
+        self.y_train = y_train
+
+        self.w = 0. #initial point, non-array
+        self.b = 0.
+
+        # initialize subplots
+        self.dplot = data_plot(ax[0], x_train, y_train, self.w, self.b)
+        self.con_plot = contour_and_surface_plot(ax[1], ax[2], x_train, y_train, w_range, b_range, self.w, self.b)
+        self.cplot = cost_plot(ax[3])
+
+        # setup events
+        self.cid = fig.canvas.mpl_connect('button_press_event', self.click_contour)
+        self.bcalc = Button(axcalc, 'Run Gradient Descent \nfrom current w,b (click)', color=dlc["dlorange"])
+        self.bcalc.on_clicked(self.calc_logistic)
+
+class data_plot:
+    ''' handles data plot '''
+    # pylint: disable=missing-function-docstring
+    # pylint: disable=attribute-defined-outside-init
+    def __init__(self, ax, x_train, y_train, w, b):
+        self.ax = ax
+        self.x_train = x_train
+        self.y_train = y_train
+        self.m = x_train.shape[0]
+        self.w = w
+        self.b = b
+
+        self.plt_tumor_data()
+        self.draw_logistic_lines(firsttime=True)
+        self.mk_cost_lines(firsttime=True)
+
+        self.ax.autoscale(enable=False)
+
+class contour_and_surface_plot:
+    ''' plots combined in class as they have similar operations '''
+    # pylint: disable=missing-function-docstring
+    # pylint: disable=attribute-defined-outside-init
+    def __init__(self, axc, axs, x_train, y_train, w_range, b_range, w, b):
+
+        self.x_train = x_train
+        self.y_train = y_train
+        self.axc = axc
+        self.axs = axs
+
+        #setup useful ranges and common linspaces
+        b_space  = np.linspace(*b_range, 100)
+        w_space  = np.linspace(*w_range, 100)
+
+        # get cost for w,b ranges for contour and 3D
+        tmp_b,tmp_w = np.meshgrid(b_space,w_space)
+        z = np.zeros_like(tmp_b)
+        for i in range(tmp_w.shape[0]):
+            for j in range(tmp_w.shape[1]):
+                z[i,j] = compute_cost_matrix(x_train.reshape(-1,1), y_train, tmp_w[i,j], tmp_b[i,j],
+                                             logistic=True, lambda_=0, safe=True)
+                if z[i,j] == 0:
+                    z[i,j] = 1e-9
+
+        ### plot contour ###
+        CS = axc.contour(tmp_w, tmp_b, np.log(z),levels=12, linewidths=2, alpha=0.7,colors=dlcolors)
+        axc.set_title('log(Cost(w,b))')
+        axc.set_xlabel('w', fontsize=10)
+        axc.set_ylabel('b', fontsize=10)
+        axc.set_xlim(w_range)
+        axc.set_ylim(b_range)
+        self.update_contour_wb_lines(w, b, firsttime=True)
+        axc.text(0.7,0.05,"Click to choose w,b",  bbox=dict(facecolor='white', ec = 'black'), fontsize = 10,
+                transform=axc.transAxes, verticalalignment = 'center', horizontalalignment= 'center')
+
+        #Surface plot of the cost function J(w,b)
+        axs.plot_surface(tmp_w, tmp_b, z,  cmap = cm.jet, alpha=0.3, antialiased=True)
+        axs.plot_wireframe(tmp_w, tmp_b, z, color='k', alpha=0.1)
+        axs.set_xlabel("$w$")
+        axs.set_ylabel("$b$")
+        axs.zaxis.set_rotate_label(False)
+        axs.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+        axs.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+        axs.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+        axs.set_zlabel("J(w, b)", rotation=90)
+        axs.view_init(30, -120)
+
+        axs.autoscale(enable=False)
+        axc.autoscale(enable=False)
+
+        self.path = path(self.w,self.b, self.axc)
+
+class cost_plot:
+    """ manages cost plot for plt_quad_logistic """
+    # pylint: disable=missing-function-docstring
+    # pylint: disable=attribute-defined-outside-init
+    def __init__(self,ax):
+        self.ax = ax
+        self.ax.set_ylabel("log(cost)")
+        self.ax.set_xlabel("iteration")
+        self.costs = []
+        self.cline = self.ax.plot(0,0, color=dlc["dlblue"])
+
+    def re_init(self):
+        self.ax.clear()
+        self.__init__(self.ax)
+
+    def add_cost(self,J_hist):
+        self.costs.extend(J_hist)
+        self.cline[0].remove()
+        self.cline = self.ax.plot(self.costs)
+
+def plt_prob(ax, w_out,b_out):
+    """ plots a decision boundary but include shading to indicate the probability """
+    #setup useful ranges and common linspaces
+    x0_space  = np.linspace(0, 4 , 100)
+    x1_space  = np.linspace(0, 4 , 100)
+
+    # get probability for x0,x1 ranges
+    tmp_x0,tmp_x1 = np.meshgrid(x0_space,x1_space)
+    z = np.zeros_like(tmp_x0)
+    for i in range(tmp_x0.shape[0]):
+        for j in range(tmp_x1.shape[1]):
+            z[i,j] = sigmoid(np.dot(w_out, np.array([tmp_x0[i,j],tmp_x1[i,j]])) + b_out)
+
+
+    cmap = plt.get_cmap('Blues')
+    new_cmap = truncate_colormap(cmap, 0.0, 0.5)
+    pcm = ax.pcolormesh(tmp_x0, tmp_x1, z,
+                   norm=cm.colors.Normalize(vmin=0, vmax=1),
+                   cmap=new_cmap, shading='nearest', alpha = 0.9)
+    ax.figure.colorbar(pcm, ax=ax)
+
+def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+    """ truncates color map """
+    new_cmap = colors.LinearSegmentedColormap.from_list(
+        'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
+        cmap(np.linspace(minval, maxval, n)))
+    return new_cmap
+
+def compute_cost_logistic(X, y, w, b, lambda_=0, safe=False):
+    """
+    Computes cost using logistic loss, non-matrix version
+
+    Args:
+      X (ndarray): Shape (m,n)  matrix of examples with n features
+      y (ndarray): Shape (m,)   target values
+      w (ndarray): Shape (n,)   parameters for prediction
+      b (scalar):               parameter  for prediction
+      lambda_ : (scalar, float) Controls amount of regularization, 0 = no regularization
+      safe : (boolean)          True-selects under/overflow safe algorithm
+    Returns:
+      cost (scalar): cost
+    """
+
+    m,n = X.shape
+    cost = 0.0
+    for i in range(m):
+        z_i    = np.dot(X[i],w) + b                                             #(n,)(n,) or (n,) ()
+        if safe:  #avoids overflows
+            cost += -(y[i] * z_i ) + log_1pexp(z_i)
+        else:
+            f_wb_i = sigmoid(z_i)                                                   #(n,)
+            cost  += -y[i] * np.log(f_wb_i) - (1 - y[i]) * np.log(1 - f_wb_i)       # scalar
+    cost = cost/m
+
+    reg_cost = 0
+    if lambda_ != 0:
+        for j in range(n):
+            reg_cost += (w[j]**2)                                               # scalar
+        reg_cost = (lambda_/(2*m))*reg_cost
+
+    return cost + reg_cost
