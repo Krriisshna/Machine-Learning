@@ -54,7 +54,7 @@ def plot_decision_boundary(w, b, X, y):
         # Evaluate z = theta*x over the grid
         for i in range(len(u)):
             for j in range(len(v)):
-                z[i,j] = sig(np.dot(map_feature(u[i], v[j]), w) + b)
+                z[i,j] = sig(np.dot(map_feature(u[i], v[j]).flatten(), w) + b).item()
         
         # important to transpose z before calling contour       
         z = z.T
